@@ -1,0 +1,81 @@
+import pyvisa as visa
+import numpy as np
+import sys
+import matplotlib as plt
+#connect to scope
+try:
+    VISA_ADDRESS = 'USB0::0x0957::0x1790::MY58031279::0::INSTR' #VISA address goes here, can be obtained from IO Libraries
+    rm = visa.ResourceManager()
+    scope = rm.open_resource(VISA_ADDRESS)
+    print(scope.query('*IDN?'))
+    
+except Exception:
+    print "Unable to connect to oscilloscope at " + str(SCOPE_VISA_ADDRESS) + ". Aborting script."
+    sys.exit()
+# Clear the status data structures, the device-defined error queue, and the Request-for-OPC flag
+scope.write('*CLS')
+def voltage_vs_time(chan_num):
+    try:
+        scope.write("ACQuire:TYPE HRESolution") 
+        # sets the oscilloscope in the high-resolution mode (also known as smoothing). 
+        # This mode is used to reduce noise at slower sweep speeds where the digitizer samples faster than needed to fill 
+        # memory for the displayed time range.
+        # For example, if the digitizer samples at 200 MSa/s, but the effective sample rate is 1 MSa/s (because of 
+        # a slower sweep speed), only 1 out of every 200 samples needs to be stored. 
+        # Instead of storing one sample (and throwing others
+        # away), the 200 samples are averaged together to provide the value for one
+        # display point. The slower the sweep speed, the greater the number of samples
+        # that are averaged together for each display point.
+        
+        # if prefered use scope.write("ACQuire:NORMal") instead
+        
+        scope.write("SINGle") #causes the instrument to acquire a single trigger of data.
+        # This is the same as pressing the Single key on the front panel.
+        
+        scope.write(":WAVeform:SOURce CHANnel{}".format(chan_num))
+        
+        scope.write(":WAVeform:FORMat ASCii") 
+        # ASCii formatted data converts the internal integer data values to real Y-axis
+        # values. Values are transferred as ASCii digits in floating point notation,
+        # separated by commas. ASCII formatted data is transferred ASCii text.
+        
+        scope.write(":WAVeform:POINts 100")
+        
+        data_raw = scope.write(":WAVeform:DATA?") #request data from scope
+        data_list = data_raw.split(",")
+        data = np.array(data_list, dtype=float)
+        
+        
+        preamble = scope.query(':WAVeform:PREamble?').split(',')
+        values = scope.query_binary_values(':WAVeform:DATA?', datatype='h', container=np.array)
+
+        num_samples = int(preamble[2])
+
+        x_increment = scope.query(":WAVeform:XINCrement?")
+        x_origin = scope.query(":WAVeform:XORigin?")
+        x_reference = float(preamble[6])
+        time = np.array([(np.arange(num_samples)-x_reference) * x_increment + x_origin])
+        time = time.T # make x values vertical 
+        
+        y_increment = scope.query(":WAVeform:YINCrement?")
+        y_origin = scope.query(":WAVeform:YORigin?")
+        y_reference = float(preamble[9])
+        voltage = (values-y_reference) * y_increment + y_origin
+        
+        
+        return time, voltage
+        
+    except Exception as e:
+        print(e)
+    
+    for i in range(3):
+        chan_number = i
+        t, V = voltage_vs_time(i)
+        plt.plot(t, V)
+        plt.title("Voltage vs Time for Channel " + str(i + 1))
+        plt.xlabel('Time (s)')
+        plt.ylabel('Voltage (V)')
+        plt.grid()
+        plt.show()
+       
+    scope.close()
