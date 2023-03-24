@@ -27,9 +27,9 @@ def voltage_vs_time(chan_num):
         # display point. The slower the sweep speed, the greater the number of samples
         # that are averaged together for each display point.
         
-        # if prefered use scope.write("ACQuire:NORMal") instead
+        # if prefered use scope.write(":ACQuire:NORMal") instead
         
-        scope.write("SINGle") #causes the instrument to acquire a single trigger of data.
+        scope.write(":SINGle") #causes the instrument to acquire a single trigger of data.
         # This is the same as pressing the Single key on the front panel.
         
         scope.write(":WAVeform:SOURce CHANnel{}".format(chan_num))
